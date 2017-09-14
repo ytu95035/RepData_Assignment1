@@ -1,0 +1,132 @@
+---
+title: "Reproducible Research Class Assigement 1"
+author: "Yuling Tu"
+date: "September 12, 2017"
+output: html_document
+---
+# Reproducible Research Assignment 1
+
+The variables included in this dataset are:
+
+* steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+* date: The date on which the measurement was taken in YYYY-MM-DD format
+* interval: Identifier for the 5-minute interval in which measurement was taken
+
+The dataset is stored in a comma-separated-value (CSV) file and there are a total of 17,568 observations in this dataset.
+
+Set up grobal setting echo=TRUE and root directory
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, root.dir="~/R/coursera/data")
+```
+
+#Loading and preprocessing the data
+
+```{r load data}
+if(!file.exists("repdata_data_activity.zip")) {
+        temp <- tempfile()
+        download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip",temp)
+        unzip(temp)
+        unlink(temp)
+}
+
+act <- read.csv(file = "activity.csv")
+```
+
+#Question 1: What is mean total number of steps taken per day? 
+For this part of the assignment, you can ignore the missing values in the dataset.
+xtable package is required 
+Use "Inline text" to report mean and median 
+```{r question1}
+dailysum <- aggregate(steps ~ date, act, sum, na.rm=TRUE)
+
+library(xtable)
+xtsum <- xtable(summary(dailysum))
+print(xtsum, type="html")
+
+hist(dailysum$steps,10, main = paste("Histogram of Total Steps Each Day"), col="blue", xlab="Number of Steps", ylim =c(0, 25))
+dailymean <- mean(dailysum$steps)
+dailymedian <- median(dailysum$steps)
+```
+** The mean is `r dailymean` and the median is `r dailymedian`.
+
+# Question 2: What is the average daily activity pattern?
+Use summary table and plot to show the average steps for each interval
+Use "Inline Text" to report the max
+
+```{r question2}
+interval <- aggregate(steps ~ interval, act, mean, na.rm=TRUE)
+xtint <- xtable(summary(interval))
+print(xtint, type="html")
+
+plot(interval$interval,interval$steps, type="l", col="blue", xlab="Interval", ylab="Number of Steps",main="Average Number of Steps per Day by Interval")
+
+maxinterval <- interval[which.max(interval$steps),1]
+
+```
+** The maximum number of steps at 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps, is `r maxinterval`. 
+
+# Question 3: Imputing missing values
+
+Missing values were imputed by inserting the average for each interval by adding a new column (imputed_steps).  
+Round the new column (imputed_steps)
+
+```{r question3}
+missing <- sum(is.na(act$steps))
+
+act$imputed_steps <- ifelse(is.na(act$steps), round(interval$steps[match(act$interval, interval$interval)],0), act$steps)
+
+imputed_sum <- aggregate(imputed_steps ~ date, act, sum)
+
+library(xtable)
+xtsum2 <- xtable(summary(imputed_sum))
+print(xtsum2, type="html")
+
+hist(imputed_sum$imputed_steps,10, main = paste("Histogram of Total Imputed Steps Each Day"), col="purple", xlab="Number of Steps", ylim =c(0, 25))
+imputed_mean <- mean(imputed_sum$imputed_steps)
+imputed_median <- median(imputed_sum$imputed_steps)
+
+meandiff <- imputed_mean - dailymean
+mediandiff <- imputed_median - dailymedian
+
+totaldiff <- sum(act$imputed_steps) - sum(act$steps, na.rm = TRUE)
+
+```
+** Report the numbers as below:
+
+* The total number of missing values in the dataset `r missing`.
+* The mean from imputing missing value is `r imputed_mean` 
+* The median from imputing missing value is `r imputed_median`.
+* The difference between the imputed mean and non-imputed mean is `r meandiff`. If rounding both means, then the number is the same.  Imputing missing value with interval average doesn't change mean.
+* The difference between the imputed mean and non-imputed mean is `r mediandiff`.  The difference is very small.
+* The difference between total number of steps between imputed and non-imputed data is `r totaldiff` . Imputing missing value do affect the total number of steps.
+* From histogram charts (with same y scale), you can note than the only bin that is changed is the interval between 10000 and 12000 steps, grown from a frequency of 16 to a frequency of 24.
+
+
+# Question 4: Are there differences in activity patterns between weekdays and weekends?
+
+For this part the weekdays() function may be of some help here. Use the dataset with the filled-in missing values for this part.
+
+```{r question4}
+# date column is a factor type, need to convert to date type
+act$datetype <- as.Date(act$date, format = "%Y-%m-%d")
+# find a weekday for the datetype
+act$weekday <- weekdays(act$datetype)
+# define weekday type
+act$daytype <- ifelse(act$weekday=='Saturday' | act$weekday=='Sunday', 'weekend','weekday')
+
+imputed_weekday <- aggregate(imputed_steps ~ interval + daytype, act, mean)
+
+library(lattice)
+
+xyplot(imputed_steps ~ interval|daytype, 
+       data= imputed_weekday,
+       main="Average Imputed Steps per Day Per Interval",
+       xlab="Interval", 
+       ylab="Imputed Steps",
+       layout=c(1,2), 
+       type="l")
+```
+
+
+** From the panel charts, looks like those testers are more active earlier (before 800 interval) in the day during weekdays compared to weekends, but more active throughout the weekends compared with weekdays.
